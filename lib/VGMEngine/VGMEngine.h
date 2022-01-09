@@ -10,6 +10,7 @@
 #include "SPIRAM.h"
 #include "YM2612.h"
 #include "SN76489.h"
+#include "YM2151.h"
 
 #include "clocks.h"
 
@@ -53,6 +54,9 @@ public:
     #endif
     #if ENABLE_YM2612 
         YM2612* ym2612; 
+    #endif
+    #if ENABLE_YM2151 
+        YM2151* ym2151; 
     #endif
     bool load(bool singleChunk = false);
     void tick44k1();

@@ -15,6 +15,6 @@ static inline Si5351 si5351A(0x60);
 #define nop __asm__ __volatile__ ("nop\n\t")
 
 #define NTSC_COLORBURST 3579545
-#define NTSC_YMCLK 7670454
+#define NTSC_YMCLK NTSC_COLORBURST//7670454
 
 #endif

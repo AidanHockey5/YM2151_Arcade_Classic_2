@@ -2,7 +2,7 @@
 //CHIP SELECT FEATURES MANUALLY ADJUSTED IN SDFAT LIB (in SdSpiDriver.h). MUST USE LIB INCLUDED WITH REPO!!!
 
 #define BOOTLOADER_VERSION "1.0"
-#define FIRMWARE_VERSION "1.26"
+#define FIRMWARE_VERSION "A"
 
 #include <Arduino.h>
 #include <SPI.h>
@@ -37,7 +37,7 @@ extern "C" {
 #define DEBUG_LED A4
 bool commandFailed = false;
 uint8_t failedCmd = 0x00;
-#define DISABLE_IRQ_TEST false
+#define DISABLE_IRQ_TEST true
 
 //Structs
 enum FileStrategy {FIRST_START, NEXT, PREV, RND, REQUEST};
@@ -110,8 +110,9 @@ Adafruit_ZeroTimer timer2 = Adafruit_ZeroTimer(4);
 
 Bus bus(0, 1, 8, 9, 11, 10, 12, 13);
 
-YM2612 opn(&bus, 3, NULL, 6, 4, 5, 7);
-SN76489 sn(&bus, 2);
+// YM2612 opn(&bus, 3, NULL, 6, 4, 5, 7);
+// SN76489 sn(&bus, 2);
+YM2151 opm(&bus, 3, NULL, 6, 4, 7);
 const uint8_t IRQTestPin = 51;
 
 //VGM Variables
@@ -365,11 +366,14 @@ void setup()
   buttons[4].attach(down_btn, INPUT_PULLUP);
 
   //Set Chips
-  VGMEngine.ym2612 = &opn;
-  VGMEngine.sn76489 = &sn;
+  // VGMEngine.ym2612 = &opn;
+  // VGMEngine.sn76489 = &sn;
+  VGMEngine.ym2151 = &opm;
 
-  opn.reset();
-  sn.reset();
+  // opn.reset();
+  // sn.reset();
+
+  opm.reset();
 
   //u8g2 OLED
   u8g2.begin();
@@ -419,7 +423,7 @@ void setup()
 uint16_t IRQtestCounter = 0;
 void IRQ_ISR()
 {
-  opn.setYMTimerA(0);
+  //opn.setYMTimerA(0);
   IRQtestCounter++;
 }
 
@@ -427,7 +431,7 @@ void IRQSelfTest() //Use the IRQ pin and the built-in OPN timers to determine if
 {
   Serial.println("Testing IRQ...");
   attachInterrupt(digitalPinToInterrupt(IRQTestPin), IRQ_ISR, FALLING);
-  opn.setYMTimerA(0);
+  //opn.setYMTimerA(0);
   unsigned long s = millis();
   while(true)
   {
@@ -453,7 +457,7 @@ void IRQSelfTest() //Use the IRQ pin and the built-in OPN timers to determine if
   };
   Serial.println("YM IRQ OK!");
   detachInterrupt(digitalPinToInterrupt(IRQTestPin));
-  opn.clearYMTimerA();
+  //opn.clearYMTimerA();
 }
 
 void drawOLEDTrackInfo()
@@ -775,8 +779,9 @@ bool startTrack(FileStrategy fileStrategy, String request)
     file.read(&gzipmagic, 2);
     if(gzipmagic == 0x8B1F) //File header starts with gzip magic number
     {
-      opn.reset();
-      sn.reset();
+      //opn.reset();
+      //sn.reset();
+      opm.reset();
       u8g2.setDrawColor(0);
       u8g2.drawStr(45, 64, " EXTRACTING...");
       u8g2.setDrawColor(1);
@@ -807,8 +812,9 @@ bool startTrack(FileStrategy fileStrategy, String request)
       }
     }
     file.seek(0);
-    opn.reset();
-    sn.reset();
+    // opn.reset();
+    // sn.reset();
+    opm.reset();
     delay(100);
     if(VGMEngine.begin(&file))
     {

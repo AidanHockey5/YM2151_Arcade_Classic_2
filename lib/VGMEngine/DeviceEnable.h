@@ -2,10 +2,10 @@
 #define _DEVICE_ENABLE_H_
 
 
-#define ENABLE_SN76489 true
+#define ENABLE_SN76489 false
 #define ENABLE_YM2413 false
-#define ENABLE_YM2612 true
-#define ENABLE_YM2151 false
+#define ENABLE_YM2612 false
+#define ENABLE_YM2151 true
 #define ENABLE_SEGAPCM false
 #define ENABLE_RF5C68 false
 #define ENABLE_YM2203 false

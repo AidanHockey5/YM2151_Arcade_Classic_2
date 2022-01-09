@@ -260,6 +260,12 @@ void VGMEngineClass::chipSetup()
     delay(10);
     ym2612->reset();
     #endif
+    #if ENABLE_YM2151
+    ym2151->setClock(header.ym2151Clock);
+    si5351.set_freq(header.ym2151Clock*SI5351_FREQ_MULT, SI5351_CLK0); //CLK0 YM
+    delay(10);
+    ym2151->reset();
+    #endif
 }
 
 void VGMEngineClass::tick44k1()
@@ -290,26 +296,26 @@ VGMEngineState VGMEngineClass::play()
     break;
     case PLAYING:
         load(); 
-        while(dacSampleCountDown <= 0)
-        {
-            dacSampleReady = false;
-            if(dacStreamBufPos+1 < dataBlocks[activeDacStreamBlock].DataStart+dataBlocks[activeDacStreamBlock].DataLength)
-            {
-                uint8_t data = ram.ReadByte(dacStreamBufPos++);
-                // check if channel 6 is enabled, since this is a DAC write
-                if (ym2612CHControl[0x06])
-                {
-                    ym2612->write(0x2A, data, 0);
-                }
-            }
-            else if(bitRead(dataBlocks[activeDacStreamBlock].LengthMode, 7)) //Looping length mode defined in 0x93 DAC STREAM
-            {
-                dacStreamBufPos = dataBlocks[activeDacStreamBlock].DataStart;
-            }
-            else
-                activeDacStreamBlock = 0xFF;
-            dacSampleCountDown++;
-        }
+        // while(dacSampleCountDown <= 0)
+        // {
+        //     dacSampleReady = false;
+        //     if(dacStreamBufPos+1 < dataBlocks[activeDacStreamBlock].DataStart+dataBlocks[activeDacStreamBlock].DataLength)
+        //     {
+        //         uint8_t data = ram.ReadByte(dacStreamBufPos++);
+        //         // check if channel 6 is enabled, since this is a DAC write
+        //         if (ym2612CHControl[0x06])
+        //         {
+        //             ym2612->write(0x2A, data, 0);
+        //         }
+        //     }
+        //     else if(bitRead(dataBlocks[activeDacStreamBlock].LengthMode, 7)) //Looping length mode defined in 0x93 DAC STREAM
+        //     {
+        //         dacStreamBufPos = dataBlocks[activeDacStreamBlock].DataStart;
+        //     }
+        //     else
+        //         activeDacStreamBlock = 0xFF;
+        //     dacSampleCountDown++;
+        // }
         while(waitSamples <= 0)
         {
             isBusy = true;
@@ -350,56 +356,64 @@ uint16_t VGMEngineClass::parseVGM()
             case 0x4F:
             case 0x50:
             {
-                // check for game gear stereo write
-                if (cmd == 0x4F)
-                {
-                    sn76489->write(0x06);
-                }
-                uint8_t data = readBufOne();
-                // check for a latch write (MSB=1)
-                if ((data & 0x80) != 0)
-                {
-                    // decode the channel and store it
-                    sn76489Latched = (data & 0x60) >> 5;
-                    // if the latched channel is disabled then make it silent
-                    if (!sn76489CHControl[sn76489Latched])
-                    {
-                        // override the write to volume full attenuation
-                        data = (data & 0xE0) + 0x1F;
-                    }
-                    sn76489->write(data);
-                }
-                else
-                {
-                    // only write data if the latched channel is enabled
-                    if (sn76489CHControl[sn76489Latched])
-                    {
-                        sn76489->write(data);
-                    }
-                }
+                // // check for game gear stereo write
+                // if (cmd == 0x4F)
+                // {
+                //     sn76489->write(0x06);
+                // }
+                // uint8_t data = readBufOne();
+                // // check for a latch write (MSB=1)
+                // if ((data & 0x80) != 0)
+                // {
+                //     // decode the channel and store it
+                //     sn76489Latched = (data & 0x60) >> 5;
+                //     // if the latched channel is disabled then make it silent
+                //     if (!sn76489CHControl[sn76489Latched])
+                //     {
+                //         // override the write to volume full attenuation
+                //         data = (data & 0xE0) + 0x1F;
+                //     }
+                //     sn76489->write(data);
+                // }
+                // else
+                // {
+                //     // only write data if the latched channel is enabled
+                //     if (sn76489CHControl[sn76489Latched])
+                //     {
+                //         sn76489->write(data);
+                //     }
+                // }
                 break;
             }
             case 0x52:
             {
-                uint8_t addr = readBufOne();
-                uint8_t data = readBufOne();
-                // check for an operator/channel key on/off write
-                if (addr == 0x28)
-                {
-                    uint8_t channel = (data & 0x07);
-                    // if the channel is disabled then make it silent (force a key-off)
-                    if (!ym2612CHControl[channel])
-                    {
-                        // override the write disabling the operators
-                        data = (data & 0x0F);
-                    }
-                }
-                ym2612->write(addr, data, 0);
+                // uint8_t addr = readBufOne();
+                // uint8_t data = readBufOne();
+                // // check for an operator/channel key on/off write
+                // if (addr == 0x28)
+                // {
+                //     uint8_t channel = (data & 0x07);
+                //     // if the channel is disabled then make it silent (force a key-off)
+                //     if (!ym2612CHControl[channel])
+                //     {
+                //         // override the write disabling the operators
+                //         data = (data & 0x0F);
+                //     }
+                // }
+                // ym2612->write(addr, data, 0);
                 break;
             }
             case 0x53:
                 // part 2 writes don't deal with operator key on/off operations
-                ym2612->write(readBufOne(), readBufOne(), 1);
+                //ym2612->write(readBufOne(), readBufOne(), 1);
+            break;
+            case 0x54:
+            {
+                uint8_t addr = readBufOne();
+                uint8_t data = readBufOne();
+                ym2151->write(addr, data);
+            
+            }
             break;
             case 0x61:
                 return readBuf16();
@@ -463,21 +477,22 @@ uint16_t VGMEngineClass::parseVGM()
             case 0x8D:
             case 0x8E:
             case 0x8F:
-            {
-                uint8_t data = ram.ReadByte(pcmBufferPosition++);
-                // check if channel 6 is enabled, since this is a DAC write
-                if (ym2612CHControl[0x06])
-                {
-                    ym2612->write(0x2A, data, 0);
-                }
-                uint8_t wait = (cmd & 0x0F);
-                if(wait == 0)
-                    break;
-                else
-                    return wait; //Wait -1: Even if you return a 0, every loop has inherent latency of at least 1 tick. This compensates for that.
-            }
+            // {
+            //     uint8_t data = ram.ReadByte(pcmBufferPosition++);
+            //     // check if channel 6 is enabled, since this is a DAC write
+            //     if (ym2612CHControl[0x06])
+            //     {
+            //         ym2612->write(0x2A, data, 0);
+            //     }
+            //     uint8_t wait = (cmd & 0x0F);
+            //     if(wait == 0)
+            //         break;
+            //     else
+            //         return wait; //Wait -1: Even if you return a 0, every loop has inherent latency of at least 1 tick. This compensates for that.
+            // }
+            break;
             case 0xE0:
-                pcmBufferPosition = readBuf32();
+                //pcmBufferPosition = readBuf32();
             break;
             case 0x66:
             {
