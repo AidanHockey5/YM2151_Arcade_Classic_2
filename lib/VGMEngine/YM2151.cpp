@@ -33,17 +33,17 @@ void YM2151::write(uint8_t addr, uint8_t data)
     REG_PORT_OUTCLR1 = PORT_PB16; //CS LOW
     REG_PORT_OUTCLR1 = PORT_PB13; //A0 LOW
     bus->write(addr);
-    spin(15); //~125ns
+    spin(29); //~240ns
     REG_PORT_OUTCLR1 = PORT_PB15; //WR LOW
-    spin(15); //~125ns
+    spin(29); //~240ns
     REG_PORT_OUTSET1 = PORT_PB15; //WR HIGH
-    spin(7); //~58ns
+    spin(15); //~125ns
     REG_PORT_OUTSET1 = PORT_PB13; //A0 HIGH
-    spin(7); //~58ns
+    spin(15); //~125ns
     bus->write(data);
-    spin(15); //~125ns
+    spin(29); //~240ns
     REG_PORT_OUTCLR1 = PORT_PB15; //WR LOW
-    spin(15); //~125ns
+    spin(29); //~240ns
     REG_PORT_OUTSET1 = PORT_PB15; //WR HIGH
     REG_PORT_OUTSET1 = PORT_PB16; //CS HIGH
     delayMicroseconds(11); //Busy flag on chip will be set, but we can't read it since MCU is 3.3V. 11 micros is about the time where the worst-case busy clear time is satisfied.

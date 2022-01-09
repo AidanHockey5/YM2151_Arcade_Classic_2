@@ -132,6 +132,17 @@ bool VGMEngineClass::topUp()
 
 bool VGMEngineClass::storePCM(bool skip)
 {
+    // while(file->peek() == 0x67)
+    // {
+    //     file->read(); //0x67
+    //     file->read(); //0x66
+    //     file->read(); //datatype  
+    //     uint32_t size;
+    //     file->read(&size, 4); //PCM chunk size
+    //     file->seekCur(size);
+    //     return false;
+    // }
+
     bool isPCM = false;
     uint8_t openSlot = 0;
     uint32_t curChunk = 0;
@@ -163,8 +174,8 @@ bool VGMEngineClass::storePCM(bool skip)
         }
         if(ram.usedBytes >= MAX_PCM_BUFFER_SIZE)
         {
-            state = END_OF_TRACK;
-            return true; //todo: Error out here or go to next track. return is temporary
+            //state = END_OF_TRACK;
+            //return true; //todo: Error out here or go to next track. return is temporary
         }
         else
         {
@@ -175,7 +186,7 @@ bool VGMEngineClass::storePCM(bool skip)
             for(uint32_t i = 0; i<chunksRequired; i++)
             {
                 file->readBytes(streamChunk, STREAM_CHUNK_SIZE);
-                ram.WriteStream(curChunk*STREAM_CHUNK_SIZE, streamChunk, STREAM_CHUNK_SIZE);
+                //ram.WriteStream(curChunk*STREAM_CHUNK_SIZE, streamChunk, STREAM_CHUNK_SIZE);
                 curChunk++;
             }
             count++;
@@ -185,7 +196,12 @@ bool VGMEngineClass::storePCM(bool skip)
                 file->seek(header.vgmDataOffset+0x34+pcmBufferEndPosition+(7*count));
 
             dataBlocks[openSlot].DataStart = lastBlockEndPos;
-            //byte-by-byte
+
+
+
+
+
+            //byte-by-byte, don't use
             // uint32_t lastBlockEndPos = openSlot == 0 ? 0 : dataBlocks[openSlot-1].DataStart+dataBlocks[openSlot-1].DataLength;
             // for(uint32_t i = lastBlockEndPos; i<lastBlockEndPos+dataBlocks[openSlot].DataLength; i++)
             // {
@@ -193,7 +209,7 @@ bool VGMEngineClass::storePCM(bool skip)
             //     pcmBufferEndPosition++;
             // }
             // dataBlocks[openSlot].DataStart = lastBlockEndPos;
-        }
+       }
     } 
     
     //Serial.print("Used Bytes: "); Serial.println(ram.usedBytes);
@@ -296,26 +312,28 @@ VGMEngineState VGMEngineClass::play()
     break;
     case PLAYING:
         load(); 
-        // while(dacSampleCountDown <= 0)
-        // {
-        //     dacSampleReady = false;
-        //     if(dacStreamBufPos+1 < dataBlocks[activeDacStreamBlock].DataStart+dataBlocks[activeDacStreamBlock].DataLength)
-        //     {
-        //         uint8_t data = ram.ReadByte(dacStreamBufPos++);
-        //         // check if channel 6 is enabled, since this is a DAC write
-        //         if (ym2612CHControl[0x06])
-        //         {
-        //             ym2612->write(0x2A, data, 0);
-        //         }
-        //     }
-        //     else if(bitRead(dataBlocks[activeDacStreamBlock].LengthMode, 7)) //Looping length mode defined in 0x93 DAC STREAM
-        //     {
-        //         dacStreamBufPos = dataBlocks[activeDacStreamBlock].DataStart;
-        //     }
-        //     else
-        //         activeDacStreamBlock = 0xFF;
-        //     dacSampleCountDown++;
-        // }
+        #if ENABLE_YM2612
+        while(dacSampleCountDown <= 0)
+        {
+            dacSampleReady = false;
+            if(dacStreamBufPos+1 < dataBlocks[activeDacStreamBlock].DataStart+dataBlocks[activeDacStreamBlock].DataLength)
+            {
+                uint8_t data = ram.ReadByte(dacStreamBufPos++);
+                // check if channel 6 is enabled, since this is a DAC write
+                if (ym2612CHControl[0x06])
+                {
+                    ym2612->write(0x2A, data, 0);
+                }
+            }
+            else if(bitRead(dataBlocks[activeDacStreamBlock].LengthMode, 7)) //Looping length mode defined in 0x93 DAC STREAM
+            {
+                dacStreamBufPos = dataBlocks[activeDacStreamBlock].DataStart;
+            }
+            else
+                activeDacStreamBlock = 0xFF;
+            dacSampleCountDown++;
+        }
+        #endif
         while(waitSamples <= 0)
         {
             isBusy = true;
@@ -356,63 +374,70 @@ uint16_t VGMEngineClass::parseVGM()
             case 0x4F:
             case 0x50:
             {
-                // // check for game gear stereo write
-                // if (cmd == 0x4F)
-                // {
-                //     sn76489->write(0x06);
-                // }
-                // uint8_t data = readBufOne();
-                // // check for a latch write (MSB=1)
-                // if ((data & 0x80) != 0)
-                // {
-                //     // decode the channel and store it
-                //     sn76489Latched = (data & 0x60) >> 5;
-                //     // if the latched channel is disabled then make it silent
-                //     if (!sn76489CHControl[sn76489Latched])
-                //     {
-                //         // override the write to volume full attenuation
-                //         data = (data & 0xE0) + 0x1F;
-                //     }
-                //     sn76489->write(data);
-                // }
-                // else
-                // {
-                //     // only write data if the latched channel is enabled
-                //     if (sn76489CHControl[sn76489Latched])
-                //     {
-                //         sn76489->write(data);
-                //     }
-                // }
+                #if ENABLE_SN76489
+                // check for game gear stereo write
+                if (cmd == 0x4F)
+                {
+                    sn76489->write(0x06);
+                }
+                uint8_t data = readBufOne();
+                // check for a latch write (MSB=1)
+                if ((data & 0x80) != 0)
+                {
+                    // decode the channel and store it
+                    sn76489Latched = (data & 0x60) >> 5;
+                    // if the latched channel is disabled then make it silent
+                    if (!sn76489CHControl[sn76489Latched])
+                    {
+                        // override the write to volume full attenuation
+                        data = (data & 0xE0) + 0x1F;
+                    }
+                    sn76489->write(data);
+                }
+                else
+                {
+                    // only write data if the latched channel is enabled
+                    if (sn76489CHControl[sn76489Latched])
+                    {
+                        sn76489->write(data);
+                    }
+                }
+                #endif
                 break;
             }
             case 0x52:
             {
-                // uint8_t addr = readBufOne();
-                // uint8_t data = readBufOne();
-                // // check for an operator/channel key on/off write
-                // if (addr == 0x28)
-                // {
-                //     uint8_t channel = (data & 0x07);
-                //     // if the channel is disabled then make it silent (force a key-off)
-                //     if (!ym2612CHControl[channel])
-                //     {
-                //         // override the write disabling the operators
-                //         data = (data & 0x0F);
-                //     }
-                // }
-                // ym2612->write(addr, data, 0);
+                #if ENABLE_YM2612
+                uint8_t addr = readBufOne();
+                uint8_t data = readBufOne();
+                // check for an operator/channel key on/off write
+                if (addr == 0x28)
+                {
+                    uint8_t channel = (data & 0x07);
+                    // if the channel is disabled then make it silent (force a key-off)
+                    if (!ym2612CHControl[channel])
+                    {
+                        // override the write disabling the operators
+                        data = (data & 0x0F);
+                    }
+                }
+                ym2612->write(addr, data, 0);
+                #endif
                 break;
             }
             case 0x53:
                 // part 2 writes don't deal with operator key on/off operations
-                //ym2612->write(readBufOne(), readBufOne(), 1);
+                #if ENABLE_YM2612
+                ym2612->write(readBufOne(), readBufOne(), 1);
+                #endif
             break;
             case 0x54:
             {
+                #if ENABLE_YM2151
                 uint8_t addr = readBufOne();
                 uint8_t data = readBufOne();
                 ym2151->write(addr, data);
-            
+                #endif
             }
             break;
             case 0x61:
@@ -423,26 +448,68 @@ uint16_t VGMEngineClass::parseVGM()
                 return 882;
             case 0x67:
             {
-                readBufOne(); //0x67
-                readBufOne(); //0x66
-                readBufOne(); //datatype
-                uint32_t pcmSize = readBuf32();
-                Serial.println("CALLED PCM STORE MID STREAM");
-                if(pcmSize > MAX_PCM_BUFFER_SIZE)
-                {
-                    Serial.print("TOO BIG!");
-                    return true; //todo: Error out here or go to next track. return is temporary
-                }
-                else
-                {
-                    for(uint32_t i = pcmBufferEndPosition; i<pcmSize+pcmBufferEndPosition; i++)
-                    {
-                        ram.WriteByte(i, readBufOne());
-                        pcmBufferEndPosition++;
-                    }
-                }
-                break;
+
+                readBufOne();
+                readBufOne();
+                readBufOne();
+                uint32_t pcmSize = readBuf32(); //Payload size;
+                for(uint32_t i=0; i<pcmSize; i++)
+                    readBufOne();                
+
+                // readBufOne(); //0x67
+                // readBufOne(); //0x66
+                // readBufOne(); //datatype
+                // uint32_t pcmSize = readBuf32();
+                // Serial.println("CALLED PCM STORE MID STREAM");
+                // if(pcmSize > MAX_PCM_BUFFER_SIZE)
+                // {
+                //     Serial.print("TOO BIG!");
+                //     return true; //todo: Error out here or go to next track. return is temporary
+                // }
+                // else
+                // {
+                //     for(uint32_t i = pcmBufferEndPosition; i<pcmSize+pcmBufferEndPosition; i++)
+                //     {
+                //         ram.WriteByte(i, readBufOne());
+                //         pcmBufferEndPosition++;
+                //     }
+                // }
+                // break;
             }
+            break;
+            case 0xB5: //Ignore common secondary PCM chips
+            case 0xB6:
+            case 0xB7:
+            case 0xB8:
+            case 0xB9:
+            case 0xBA:
+            case 0xBB:
+            case 0xBC:
+            case 0xBD:
+            case 0xBE:
+            case 0xBF:
+                readBuf16();
+            break;
+            case 0xC0: //24 bit write PCM chips
+            case 0xC1:
+            case 0xC2:
+            case 0xC3:
+            case 0xC4:
+            case 0xC5:
+            case 0xC6:
+            case 0xC7:
+            case 0xC8:
+            case 0xD0:
+            case 0xD1:
+            case 0xD2:
+            case 0xD3:
+            case 0xD4:
+            case 0xD5:
+            case 0xD6:
+                readBufOne(); readBufOne(); readBufOne();
+            break;
+            case 0xE1: //32 bit write PCM chips
+                readBuf32();
             break;
             case 0x70:
             case 0x71:
@@ -477,22 +544,24 @@ uint16_t VGMEngineClass::parseVGM()
             case 0x8D:
             case 0x8E:
             case 0x8F:
-            // {
-            //     uint8_t data = ram.ReadByte(pcmBufferPosition++);
-            //     // check if channel 6 is enabled, since this is a DAC write
-            //     if (ym2612CHControl[0x06])
-            //     {
-            //         ym2612->write(0x2A, data, 0);
-            //     }
-            //     uint8_t wait = (cmd & 0x0F);
-            //     if(wait == 0)
-            //         break;
-            //     else
-            //         return wait; //Wait -1: Even if you return a 0, every loop has inherent latency of at least 1 tick. This compensates for that.
-            // }
+            {
+                #if ENABLE_YM2612
+                uint8_t data = ram.ReadByte(pcmBufferPosition++);
+                // check if channel 6 is enabled, since this is a DAC write
+                if (ym2612CHControl[0x06])
+                {
+                    ym2612->write(0x2A, data, 0);
+                }
+                uint8_t wait = (cmd & 0x0F);
+                if(wait == 0)
+                    break;
+                else
+                    return wait; //Wait -1: Even if you return a 0, every loop has inherent latency of at least 1 tick. This compensates for that.
+                #endif
+            }
             break;
             case 0xE0:
-                //pcmBufferPosition = readBuf32();
+                pcmBufferPosition = readBuf32();
             break;
             case 0x66:
             {
