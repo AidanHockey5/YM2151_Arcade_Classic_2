@@ -389,7 +389,7 @@ void setup()
   const String bootloaderFWVersion = "BL: " + String(BOOTLOADER_VERSION) + " FW: " + String(FIRMWARE_VERSION) + " 2021";
   u8g2.drawStr(0, 64, bootloaderFWVersion.c_str());
   u8g2.sendBuffer();
-  delay(3000);
+  //delay(3000);
   u8g2.clearDisplay();
 
   //SD
@@ -418,6 +418,14 @@ void setup()
 
   nav.timeOut=0xFFFFFFFF; //This might be a slight issue if you decide to run your player for 50,000 days straight :/
   nav.idleTask = onMenuIdle;
+
+
+  analogWriteResolution(12);
+  pinMode(A0, OUTPUT);
+  pinMode(A1, OUTPUT);
+  analogWrite(A0, 0);
+  analogWrite(A1, 0);
+
 }
 
 uint16_t IRQtestCounter = 0;

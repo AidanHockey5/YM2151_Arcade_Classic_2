@@ -3,6 +3,7 @@
 VGMEngineClass::VGMEngineClass()
 {
     MegaStream_Create(&stream, buf, VGM_BUF_SIZE);
+    MegaStream_Create(&wavStream, wavBuf, WAV_BUF_SIZE);
 }
 VGMEngineClass::~VGMEngineClass(){}
 
@@ -35,7 +36,6 @@ bool VGMEngineClass::begin(File *f)
     }
     gd3.read(file, header.gd3Offset+0x14);
     
-
     if(header.vgmDataOffset == 0)
         file->seek(0x40);
     else
@@ -65,8 +65,29 @@ bool VGMEngineClass::begin(File *f)
     loopCount = 0;
     badCommandCount = 0;
     dacSampleCountDown = 0;
+
+    wavStartOffset = 0;
+    wavPos = 0;
+    wavEnabled = false;
+
+    if(header.indent == 0x20706756) //Vgp file detected. There is WAV data at the bottom of this file!
+    {
+        uint32_t prevPos = file->position();
+        file->seekEnd(4);
+        file->read(&wavStartOffset, 4);
+        wavStartOffset += 0x44; //Skip WAV header and go right to data
+        wavPos = wavStartOffset;
+        wavEnabled = true;
+        file->seekSet(prevPos);
+    }
+
     MegaStream_Reset(&stream);
+    MegaStream_Reset(&wavStream);
     load();
+    if(wavEnabled)
+    {
+        loadWav();
+    }
     state = PLAYING;
     ready = true;
     return true;
@@ -78,22 +99,22 @@ void VGMEngineClass::resetDataBlocks()
 }
 
 uint8_t empty = 0;
-uint8_t VGMEngineClass::readBufOne()
+uint8_t VGMEngineClass::readBufOne(MegaStreamContext_t *s)
 {
-    if(MegaStream_Used(&stream) < 1)
+    if(MegaStream_Used(s) < 1)
     {
         //digitalWrite(PA8, HIGH);
         load();
         empty = 1;
     }
     uint8_t b[1];
-    MegaStream_Recv(&stream, b, 1);
+    MegaStream_Recv(s, b, 1);
     return b[0];
 }
 
-uint16_t VGMEngineClass::readBuf16()
+uint16_t VGMEngineClass::readBuf16(MegaStreamContext_t *s)
 {
-    if(MegaStream_Used(&stream) < 2)
+    if(MegaStream_Used(s) < 2)
     {
         //digitalWrite(PA8, HIGH);
         load();
@@ -101,14 +122,14 @@ uint16_t VGMEngineClass::readBuf16()
     }
     uint16_t d;
     uint8_t b[2];
-    MegaStream_Recv(&stream, b, 2);
+    MegaStream_Recv(s, b, 2);
     d = uint16_t(b[0] + (b[1] << 8));
     return d;
 }
 
-uint32_t VGMEngineClass::readBuf32()
+uint32_t VGMEngineClass::readBuf32(MegaStreamContext_t *s)
 {
-    if(MegaStream_Used(&stream) < 4)
+    if(MegaStream_Used(s) < 4)
     {
         //digitalWrite(PA8, HIGH);
         load();
@@ -116,7 +137,7 @@ uint32_t VGMEngineClass::readBuf32()
     }
     uint32_t d;
     uint8_t b[4];
-    MegaStream_Recv(&stream, b, 4);
+    MegaStream_Recv(s, b, 4);
     d = uint32_t(b[0] + (b[1] << 8) + (b[2] << 16) + (b[3] << 24));
     return d;
 }
@@ -260,6 +281,57 @@ bool VGMEngineClass::load(bool singleChunk)
     return false;
 }
 
+bool VGMEngineClass::loadWav(bool singleChunk)
+{
+    const uint16_t MAX_CHUNK_SIZE = 512;
+    int32_t space = MegaStream_Free(&wavStream);
+    if(space == 0)
+        return true;
+    uint32_t lastPosInFile = file->position();
+    file->seekSet(wavPos);
+    bool didSingleChunk = false;
+    uint8_t chunk[MAX_CHUNK_SIZE];
+    while(MegaStream_Free(&wavStream) != 0 || didSingleChunk) //Fill up the entire buffer, or only grab a single chunk quickly
+    {
+        bool hitLoop = false;
+        uint16_t chunkSize = min(space, MAX_CHUNK_SIZE); //Who's smaller, the space left in the buffer or the maximum chunk size?
+        
+        // if(file->position() + chunkSize >= loopPos+1) //Loop code. A bit of math to see where the file pointer is. If it goes over the 0x66 position, we'll set a flag to move the file pointer to the loop point and adjust the chunk as to not grab data past the 0x66
+        // {
+        //     chunkSize = loopPos+1 - file->position(); //+1 on loopPos is to make sure we include the 0x66 command in the buffer in order for loop-triggered events to work.
+        //     hitLoop = true;
+        // }
+
+        space -= chunkSize;                 //Reduce space by the chunkSize, then read from the SD card into the chunk. Send chunk to buffer.
+        file->read(chunk, chunkSize);
+        wavPos += chunkSize;
+        MegaStream_Send(&wavStream, chunk, chunkSize); 
+        // if(hitLoop)                         //Here is where we reset the file pointer back to the loop point
+        // {
+        //     if(header.loopOffset !=0)
+        //         file->seek(header.loopOffset+0x1C);
+        //     else
+        //     {
+        //         if(header.vgmDataOffset == 0)
+        //             file->seek(0x40);
+        //         else
+        //             file->seek(header.vgmDataOffset+0x34);
+        //         storePCM(true);
+        //     }
+        // }
+        if(space <= 0)                      //No more space in the buffer? Just eject.
+        {
+            file->seekSet(lastPosInFile);
+            return true;
+        }
+        if(singleChunk)                     //Only want to grab a single chunk instead of filling the entire buffer? Set this flag.
+            didSingleChunk = true;
+    }
+    file->seekSet(lastPosInFile);
+    //NOTE, Loop (0x66) will ALWAYS be (Gd3 offset - 1) OR (EoF offset - 1) if there is no Gd3 data
+    return false;
+}
+
 void VGMEngineClass::chipSetup()
 {
     si5351.reset();
@@ -368,7 +440,7 @@ uint16_t VGMEngineClass::parseVGM()
     uint8_t cmd;
     while(true)
     {
-        cmd = readBufOne();
+        cmd = readBufOne(&stream);
         switch(cmd)
         {
             case 0x4F:
@@ -434,14 +506,14 @@ uint16_t VGMEngineClass::parseVGM()
             case 0x54:
             {
                 #if ENABLE_YM2151
-                uint8_t addr = readBufOne();
-                uint8_t data = readBufOne();
+                uint8_t addr = readBufOne(&stream);
+                uint8_t data = readBufOne(&stream);
                 ym2151->write(addr, data);
                 #endif
             }
             break;
             case 0x61:
-                return readBuf16();
+                return readBuf16(&stream);
             case 0x62:
                 return 735;
             case 0x63:
@@ -449,12 +521,12 @@ uint16_t VGMEngineClass::parseVGM()
             case 0x67:
             {
 
-                readBufOne();
-                readBufOne();
-                readBufOne();
-                uint32_t pcmSize = readBuf32(); //Payload size;
+                readBufOne(&stream);
+                readBufOne(&stream);
+                readBufOne(&stream);
+                uint32_t pcmSize = readBuf32(&stream); //Payload size;
                 for(uint32_t i=0; i<pcmSize; i++)
-                    readBufOne();                
+                    readBufOne(&stream);                
 
                 // readBufOne(); //0x67
                 // readBufOne(); //0x66
@@ -488,7 +560,7 @@ uint16_t VGMEngineClass::parseVGM()
             case 0xBD:
             case 0xBE:
             case 0xBF:
-                readBuf16();
+                readBuf16(&stream);
             break;
             case 0xC0: //24 bit write PCM chips
             case 0xC1:
@@ -506,10 +578,10 @@ uint16_t VGMEngineClass::parseVGM()
             case 0xD4:
             case 0xD5:
             case 0xD6:
-                readBufOne(); readBufOne(); readBufOne();
+                readBufOne(&stream); readBufOne(&stream); readBufOne(&stream);
             break;
             case 0xE1: //32 bit write PCM chips
-                readBuf32();
+                readBuf32(&stream);
             break;
             case 0x70:
             case 0x71:
@@ -561,7 +633,7 @@ uint16_t VGMEngineClass::parseVGM()
             }
             break;
             case 0xE0:
-                pcmBufferPosition = readBuf32();
+                pcmBufferPosition = readBuf32(&stream);
             break;
             case 0x66:
             {
@@ -573,24 +645,24 @@ uint16_t VGMEngineClass::parseVGM()
             }
             case 0x90:
             {
-                readBuf16();//skip stream ID and chip type
-                dataBlockChipPort = readBufOne();
-                dataBlockChipCommand = readBufOne();
+                readBuf16(&stream);//skip stream ID and chip type
+                dataBlockChipPort = readBufOne(&stream);
+                dataBlockChipCommand = readBufOne(&stream);
                 //Serial.print("0x90: ");// Serial.print(streamID, HEX); Serial.print(" "); Serial.print(chiptype, HEX); Serial.print(" "); Serial.print(pp, HEX); Serial.print(" "); Serial.print(cc, HEX); Serial.println("   --- SETUP STREAM CONTROL");
             }
             break;
             case 0x91:
             {
-                readBuf16(); //Skip stream ID and Data bank ID. Stream ID will be const and so will data bank if you're just using OPN2/PSG
-                dataBlockStepSize = readBufOne();
-                dataBlockStepBase = readBufOne();
+                readBuf16(&stream); //Skip stream ID and Data bank ID. Stream ID will be const and so will data bank if you're just using OPN2/PSG
+                dataBlockStepSize = readBufOne(&stream);
+                dataBlockStepBase = readBufOne(&stream);
                 //Serial.println("0x91: "); //Serial.print(streamID, HEX); Serial.print(" "); Serial.print(dbID, HEX); Serial.print(" "); Serial.print(ll, HEX); Serial.print(" "); Serial.print(bb, HEX); Serial.println("   --- SET STREAM DATA");
             }
             break;
             case 0x92:
             {
-                readBufOne(); //skip stream ID
-                uint32_t streamFrq = readBuf32();
+                readBufOne(&stream); //skip stream ID
+                uint32_t streamFrq = readBuf32(&stream);
                 setDacStreamTimer(streamFrq);
                 //Serial.println("0x92: "); //Serial.print(streamID, HEX); Serial.print(" "); Serial.print(streamFrq); Serial.println("   --- SET STREAM FRQ");
             }
@@ -598,11 +670,11 @@ uint16_t VGMEngineClass::parseVGM()
             case 0x93:
             {
                 //Come back to this one
-                readBufOne(); //skip stream ID
-                dacStreamBufPos = readBuf32();
-                uint8_t lmode = readBufOne(); //Length mode
+                readBufOne(&stream); //skip stream ID
+                dacStreamBufPos = readBuf32(&stream);
+                uint8_t lmode = readBufOne(&stream); //Length mode
                 //Serial.print("LMODE: "); Serial.print(lmode, BIN);
-                dacStreamCurLength = readBuf32();
+                dacStreamCurLength = readBuf32(&stream);
                 //Serial.print("BUF POS: "); Serial.println(dacStreamBufPos);
                 for(uint8_t i = 0; i<MAX_DATA_BLOCKS_IN_BANK; i++)
                 {
@@ -619,7 +691,7 @@ uint16_t VGMEngineClass::parseVGM()
             break;
             case 0x94:
             {
-                readBufOne(); //skip stream ID
+                readBufOne(&stream); //skip stream ID
                 stopDacStreamTimer();
                 activeDacStreamBlock = 0xFF;
                 //Serial.println("0x94: "); //Serial.print(streamID, HEX); Serial.print(" "); Serial.println("   --- STOP STREAM");
@@ -627,9 +699,9 @@ uint16_t VGMEngineClass::parseVGM()
             break;
             case 0x95:
             {
-                readBufOne(); //skip stream ID
-                uint16_t blockID = readBuf16();
-                uint8_t flags = readBufOne(); //flags
+                readBufOne(&stream); //skip stream ID
+                uint16_t blockID = readBuf16(&stream);
+                uint8_t flags = readBufOne(&stream); //flags
                 dacStreamBufPos = dataBlocks[blockID].DataStart;
                 dacStreamCurLength = dataBlocks[blockID].DataLength;
                 activeDacStreamBlock = blockID;

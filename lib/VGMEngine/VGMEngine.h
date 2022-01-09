@@ -81,6 +81,7 @@ public:
 private:
     File* file;
     static const uint32_t VGM_BUF_SIZE = 16384;
+    static const uint32_t WAV_BUF_SIZE = 16384;
     volatile int32_t waitSamples = 0;
     volatile bool ready = false;
     bool bufLock = false;
@@ -104,9 +105,16 @@ private:
     int32_t dacSampleCountDown;
     bool isOneOff = false; //This track doesn't have a loop
 
-    uint8_t readBufOne(); 
-    uint16_t readBuf16();
-    uint32_t readBuf32();
+    MegaStreamContext_t wavStream;
+    uint8_t wavBuf[WAV_BUF_SIZE];
+    uint32_t wavStartOffset = 0;
+    uint32_t wavPos = 0;
+    bool wavEnabled = false;
+    bool loadWav(bool singleChunk = false);
+
+    uint8_t readBufOne(MegaStreamContext_t *s); 
+    uint16_t readBuf16(MegaStreamContext_t *s);
+    uint32_t readBuf32(MegaStreamContext_t *s);
 
     // void timerConfig();
     // void startTimer();

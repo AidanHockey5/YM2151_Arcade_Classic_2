@@ -68,7 +68,7 @@ bool VGMHeader::read(File *f)
 
 bool VGMHeader::vgmVerify()
 {
-    return indent == 0x206D6756;
+    return indent == 0x206D6756 || indent == 0x20706756; //Vgm or Vgp header OK
 }
 
 VGMHeader::~VGMHeader(){}
