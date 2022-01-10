@@ -75,15 +75,15 @@ bool VGMEngineClass::begin(File *f)
 
     if(header.indent == 0x20706756) //Vgp file detected. There is WAV data at the bottom of this file!
     {
-        uint32_t prevPos = file->position();
-        file->seekEnd(-4);
-        file->read(&wavStartOffset, 4);
+        uint32_t prevPos = file->position(); //Keep track of the file pointer so we can put it back after we check out the WAV metadata
+        file->seekEnd(-4); //WAV start offset is stored at the very end of the file
+        file->read(&wavStartOffset, 4); //It is a 32-bit file pointer
         wavStartOffset += 0x44; //Skip WAV header and go right to data
-        wavPos = wavStartOffset;
-        wavLoopPos = wavStartOffset + header.totalSamples;
+        wavPos = wavStartOffset; //Initialize the WAV file pointer to the start of the data
+        wavLoopPos = wavStartOffset + (header.totalSamples*4);  //The wavLoopPos is the location in the WAV data where the buffer should jump back in the file to the main portion of the current track
+                                                                //*4 because 16 bits per sample, aka 2 bytes per each channel's sample, and this is a stereo stream, so multiply again by 2
         wavEnabled = true;
-        file->seekSet(prevPos);
-
+        file->seekSet(prevPos); //Put that file pointer back where it came from or so help me
     }
 
     MegaStream_Reset(&stream);
@@ -292,8 +292,8 @@ bool VGMEngineClass::loadWav(bool singleChunk)
     int32_t space = MegaStream_Free(&wavStream);
     if(space == 0)
         return true;
-    uint32_t lastPosInFile = file->position();
-    file->seekSet(wavPos);
+    uint32_t lastPosInFile = file->position(); //Since we're stealing the file pointer away from the main VGM buffer, we need to record it so we can put it back after our operation
+    file->seekSet(wavPos); //Go back to where we were last reading WAV data in the file
     bool didSingleChunk = false;
     uint8_t chunk[MAX_CHUNK_SIZE];
     while(MegaStream_Free(&wavStream) != 0 || didSingleChunk) //Fill up the entire buffer, or only grab a single chunk quickly
@@ -301,40 +301,38 @@ bool VGMEngineClass::loadWav(bool singleChunk)
         bool hitLoop = false;
         uint16_t chunkSize = min(space, MAX_CHUNK_SIZE); //Who's smaller, the space left in the buffer or the maximum chunk size?
         
-        //temp comment out because explodes head
-        // if(file->position() + chunkSize >= wavLoopPos) //Loop code. A bit of math to see where the file pointer is. If it goes over the 0x66 position, we'll set a flag to move the file pointer to the loop point and adjust the chunk as to not grab data past the 0x66
-        // {
-        //     chunkSize = wavLoopPos - file->position(); //+1 on loopPos is to make sure we include the 0x66 command in the buffer in order for loop-triggered events to work.
-        //     hitLoop = true;
-        // }
+        if(file->position() + chunkSize >= wavLoopPos) //Detect if we're past the WAV loop point
+        {
+            chunkSize = wavLoopPos - file->position(); //Only take x amount of bytes instead of a full chunk so we don't grab garbage data
+            hitLoop = true;
+            Serial.print("HIT LOOP AT: 0x"); Serial.println(file->position(), HEX);
+            Serial.print("Chunk Size: "); Serial.println(chunkSize);
+        }
 
         space -= chunkSize;                 //Reduce space by the chunkSize, then read from the SD card into the chunk. Send chunk to buffer.
         file->read(chunk, chunkSize);
-        wavPos += chunkSize;
+        wavPos += chunkSize; //Keep track of where we're reading WAV bytes for later
         MegaStream_Send(&wavStream, chunk, chunkSize); 
         if(hitLoop)                         //Here is where we reset the file pointer back to the loop point
         {
             uint32_t wavLoopStartPos;
-            if(header.loopOffset == 0)
+            if(header.loopOffset == 0) //No loop in this file, so just go back to the start of the wav data
                 wavLoopStartPos = wavStartOffset;
-            else
-            {
-                wavLoopStartPos = wavStartOffset + (header.totalSamples - header.loopNumSamples);
-            }
-
+            else //Otherwise, calculate where the start of the loop is in the WAV data *past* the introduction portion of the track
+                wavLoopStartPos = wavStartOffset + ((header.totalSamples - header.loopNumSamples)*4); //*4 because 16 bits per sample, aka 2 bytes per each channel's sample, and this is a stereo stream, so multiply again by 2. Skip the intro portion of the track.
+            
             file->seekSet(wavLoopStartPos);
-            wavPos = wavLoopStartPos;
+            wavPos = wavLoopStartPos; //Keep track of the WAV pointer for next time
         }
         if(space <= 0)                      //No more space in the buffer? Just eject.
         {
-            file->seekSet(lastPosInFile);
+            file->seekSet(lastPosInFile); //Remember to put the file pointer back so you don't confuse the VGM buffer!
             return true;
         }
         if(singleChunk)                     //Only want to grab a single chunk instead of filling the entire buffer? Set this flag.
             didSingleChunk = true;
     }
     file->seekSet(lastPosInFile);
-    //NOTE, Loop (0x66) will ALWAYS be (Gd3 offset - 1) OR (EoF offset - 1) if there is no Gd3 data
     return false;
 }
 
