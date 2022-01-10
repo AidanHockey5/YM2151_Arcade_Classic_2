@@ -68,17 +68,22 @@ bool VGMEngineClass::begin(File *f)
 
     wavStartOffset = 0;
     wavPos = 0;
+    wavLoopPos = 0;
     wavEnabled = false;
+    analogWrite(A0, 0);
+    analogWrite(A1, 0);
 
     if(header.indent == 0x20706756) //Vgp file detected. There is WAV data at the bottom of this file!
     {
         uint32_t prevPos = file->position();
-        file->seekEnd(4);
+        file->seekEnd(-4);
         file->read(&wavStartOffset, 4);
         wavStartOffset += 0x44; //Skip WAV header and go right to data
         wavPos = wavStartOffset;
+        wavLoopPos = wavStartOffset + header.totalSamples;
         wavEnabled = true;
         file->seekSet(prevPos);
+
     }
 
     MegaStream_Reset(&stream);
@@ -104,7 +109,7 @@ uint8_t VGMEngineClass::readBufOne(MegaStreamContext_t *s)
     if(MegaStream_Used(s) < 1)
     {
         //digitalWrite(PA8, HIGH);
-        load();
+        s == &stream ? load() : loadWav(); //I hate this line. Fix later... or not. Idk, you're not my mom.
         empty = 1;
     }
     uint8_t b[1];
@@ -117,7 +122,7 @@ uint16_t VGMEngineClass::readBuf16(MegaStreamContext_t *s)
     if(MegaStream_Used(s) < 2)
     {
         //digitalWrite(PA8, HIGH);
-        load();
+        s == &stream ? load() : loadWav();
         empty = 16;
     }
     uint16_t d;
@@ -132,7 +137,7 @@ uint32_t VGMEngineClass::readBuf32(MegaStreamContext_t *s)
     if(MegaStream_Used(s) < 4)
     {
         //digitalWrite(PA8, HIGH);
-        load();
+        s == &stream ? load() : loadWav();
         empty = 32;
     }
     uint32_t d;
@@ -296,9 +301,10 @@ bool VGMEngineClass::loadWav(bool singleChunk)
         bool hitLoop = false;
         uint16_t chunkSize = min(space, MAX_CHUNK_SIZE); //Who's smaller, the space left in the buffer or the maximum chunk size?
         
-        // if(file->position() + chunkSize >= loopPos+1) //Loop code. A bit of math to see where the file pointer is. If it goes over the 0x66 position, we'll set a flag to move the file pointer to the loop point and adjust the chunk as to not grab data past the 0x66
+        //temp comment out because explodes head
+        // if(file->position() + chunkSize >= wavLoopPos) //Loop code. A bit of math to see where the file pointer is. If it goes over the 0x66 position, we'll set a flag to move the file pointer to the loop point and adjust the chunk as to not grab data past the 0x66
         // {
-        //     chunkSize = loopPos+1 - file->position(); //+1 on loopPos is to make sure we include the 0x66 command in the buffer in order for loop-triggered events to work.
+        //     chunkSize = wavLoopPos - file->position(); //+1 on loopPos is to make sure we include the 0x66 command in the buffer in order for loop-triggered events to work.
         //     hitLoop = true;
         // }
 
@@ -306,19 +312,19 @@ bool VGMEngineClass::loadWav(bool singleChunk)
         file->read(chunk, chunkSize);
         wavPos += chunkSize;
         MegaStream_Send(&wavStream, chunk, chunkSize); 
-        // if(hitLoop)                         //Here is where we reset the file pointer back to the loop point
-        // {
-        //     if(header.loopOffset !=0)
-        //         file->seek(header.loopOffset+0x1C);
-        //     else
-        //     {
-        //         if(header.vgmDataOffset == 0)
-        //             file->seek(0x40);
-        //         else
-        //             file->seek(header.vgmDataOffset+0x34);
-        //         storePCM(true);
-        //     }
-        // }
+        if(hitLoop)                         //Here is where we reset the file pointer back to the loop point
+        {
+            uint32_t wavLoopStartPos;
+            if(header.loopOffset == 0)
+                wavLoopStartPos = wavStartOffset;
+            else
+            {
+                wavLoopStartPos = wavStartOffset + (header.totalSamples - header.loopNumSamples);
+            }
+
+            file->seekSet(wavLoopStartPos);
+            wavPos = wavLoopStartPos;
+        }
         if(space <= 0)                      //No more space in the buffer? Just eject.
         {
             file->seekSet(lastPosInFile);
@@ -360,7 +366,9 @@ void VGMEngineClass::tick44k1()
 {
     if(!ready)
         return;
-    waitSamples--;      
+    waitSamples--;     
+    if(wavEnabled)
+        playWavSample();
 }
 
 void VGMEngineClass::tickDacStream()
@@ -369,6 +377,16 @@ void VGMEngineClass::tickDacStream()
         return;
     if(activeDacStreamBlock != 0xFF)
         dacSampleCountDown--;
+}
+
+void VGMEngineClass::playWavSample()
+{
+    int16_t l = readBuf16(&wavStream);
+    int16_t r = readBuf16(&wavStream);
+
+    //16 bit signed to 12 bit unsigned conversion
+     REG_DAC_DATA0 = ((l + 32768) >> 4); //Quickly write to the ADC A0   
+     REG_DAC_DATA1 = ((r + 32768) >> 4); //Quickly write to the ADC A1 
 }
 
 VGMEngineState VGMEngineClass::play()
@@ -384,6 +402,8 @@ VGMEngineState VGMEngineClass::play()
     break;
     case PLAYING:
         load(); 
+        if(wavEnabled)
+            loadWav();
         #if ENABLE_YM2612
         while(dacSampleCountDown <= 0)
         {

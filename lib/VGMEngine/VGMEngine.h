@@ -109,8 +109,10 @@ private:
     uint8_t wavBuf[WAV_BUF_SIZE];
     uint32_t wavStartOffset = 0;
     uint32_t wavPos = 0;
+    uint32_t wavLoopPos = 0;
     bool wavEnabled = false;
     bool loadWav(bool singleChunk = false);
+    void playWavSample();
 
     uint8_t readBufOne(MegaStreamContext_t *s); 
     uint16_t readBuf16(MegaStreamContext_t *s);

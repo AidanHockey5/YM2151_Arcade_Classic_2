@@ -117,7 +117,7 @@ const uint8_t IRQTestPin = 51;
 
 //VGM Variables
 uint16_t loopCount = 0;
-uint8_t maxLoops = 3;
+uint8_t maxLoops = 2;
 bool fetching = false;
 volatile bool ready = false;
 bool samplePlaying = false;
