@@ -9,20 +9,22 @@ VGMEngineClass::~VGMEngineClass(){}
 
 void VGMEngineClass::ramtest() //Tests 256 bytes of external RAM
 {
-    const uint32_t ram_test_size = 0xFF;
-    bool pass = false;
-    ram.Init();
-    for(uint32_t i = 0; i<ram_test_size; i++)
-        ram.WriteByte(i, i);
-    for(uint32_t i = 0; i<ram_test_size; i++)
-    {
-        Serial.println(ram.ReadByte(i));
-        if(ram.ReadByte(i) != i)
-            pass = false;
-        else
-            pass = true;
-    }
-    pass == true ? Serial.println("RAM CHECK PASS") : Serial.println("RAM CHECK FAIL!!!");
+    #if ENABLE_SPIRAM
+        const uint32_t ram_test_size = 0xFF;
+        bool pass = false;
+        ram.Init();
+        for(uint32_t i = 0; i<ram_test_size; i++)
+            ram.WriteByte(i, i);
+        for(uint32_t i = 0; i<ram_test_size; i++)
+        {
+            Serial.println(ram.ReadByte(i));
+            if(ram.ReadByte(i) != i)
+                pass = false;
+            else
+                pass = true;
+        }
+        pass == true ? Serial.println("RAM CHECK PASS") : Serial.println("RAM CHECK FAIL!!!");
+    #endif
 }
 
 bool VGMEngineClass::begin(File *f)
@@ -56,7 +58,7 @@ bool VGMEngineClass::begin(File *f)
     #if ENABLE_SPIRAM
         ram.Init();
     #endif
-    resetDataBlocks();
+    //resetDataBlocks();
     dacSampleReady = false;
     activeDacStreamBlock = 0xFF;
     storePCM();
@@ -70,7 +72,7 @@ bool VGMEngineClass::begin(File *f)
     wavPos = 0;
     wavLoopPos = 0;
     wavEnabled = false;
-    analogWrite(A0, 0);
+    analogWrite(A0, 0); //Reset the DACs
     analogWrite(A1, 0);
 
     if(header.indent == 0x20706756) //Vgp file detected. There is WAV data at the bottom of this file!
@@ -98,10 +100,10 @@ bool VGMEngineClass::begin(File *f)
     return true;
 }
 
-void VGMEngineClass::resetDataBlocks()
-{
-    memset(dataBlocks, 0, sizeof(dataBlocks));
-}
+// void VGMEngineClass::resetDataBlocks()
+// {
+//     memset(dataBlocks, 0, sizeof(dataBlocks));
+// }
 
 uint8_t empty = 0;
 uint8_t VGMEngineClass::readBufOne(MegaStreamContext_t *s)
@@ -109,7 +111,7 @@ uint8_t VGMEngineClass::readBufOne(MegaStreamContext_t *s)
     if(MegaStream_Used(s) < 1)
     {
         //digitalWrite(PA8, HIGH);
-        s == &stream ? load() : loadWav(); //I hate this line. Fix later... or not. Idk, you're not my mom.
+        s == &stream ? load() : loadWav(); //I hate this line. Fix later... or not. Idk, you're not my mom. Which stream should I fill, the VGM stream, or the WAV stream?
         empty = 1;
     }
     uint8_t b[1];
@@ -156,89 +158,38 @@ bool VGMEngineClass::topUp()
     return false;
 }
 
-bool VGMEngineClass::storePCM(bool skip)
+bool VGMEngineClass::storePCM(bool skip) //This function effectively seeks through the PCM data in the VGM file and DOES NOT STORE IT as we will be emulating any PCM sounds through WAV data
 {
-    // while(file->peek() == 0x67)
-    // {
-    //     file->read(); //0x67
-    //     file->read(); //0x66
-    //     file->read(); //datatype  
-    //     uint32_t size;
-    //     file->read(&size, 4); //PCM chunk size
-    //     file->seekCur(size);
-    //     return false;
-    // }
-
     bool isPCM = false;
-    uint8_t openSlot = 0;
-    uint32_t curChunk = 0;
-    uint32_t count = 0;
-    pcmBufferEndPosition = 0;
-    while(file->peek() == 0x67) //PCM Block
+    uint16_t count = 0;
+    if(skip)
     {
-        for(uint8_t i = 0; i<MAX_DATA_BLOCKS_IN_BANK; i++)
-        {
-            if(!dataBlocks[i].slotOccupied)
-            {
-                dataBlocks[i].slotOccupied = true;
-                openSlot = i;
-                break;
-            }
-        }
+        file->seek(pcmSkipPosition);
+        return true;
+    }
+    pcmBufferEndPosition = 0;
+    while(file->peek() == 0x67)
+    {
         isPCM = true;
+        uint32_t size = 0;
         file->read(); //0x67
         file->read(); //0x66
         file->read(); //datatype
-        file->read(&dataBlocks[openSlot].DataLength, 4); //PCM chunk size
-        //ram.usedBytes+=dataBlocks[openSlot].DataLength;
-        dataBlocks[openSlot].absoluteDataStartInBank = pcmBufferEndPosition;
-        pcmBufferEndPosition+=dataBlocks[openSlot].DataLength;
-        if(skip)            //On loop, you'll want to just skip the PCM block since it's already loaded.
+        file->read(&size, 4); //PCM chunk size
+        pcmBufferEndPosition += size;
+        //file->seek(pcmBufferEndPosition);
+        count++;
+        if(header.vgmDataOffset == 0)
         {
-            file->seekCur(dataBlocks[openSlot].DataLength);
-            return false;
-        }
-        if(ram.usedBytes >= MAX_PCM_BUFFER_SIZE)
-        {
-            //state = END_OF_TRACK;
-            //return true; //todo: Error out here or go to next track. return is temporary
+            pcmSkipPosition = 0x40+pcmBufferEndPosition+(7*count); //7 is for the PCM block header info and datasize and needs to be multiplied by the datablock # (count)
+            file->seek(pcmSkipPosition); 
         }
         else
         {
-            //Using chunks in RAM stream-mode nearly halves loading times compared to byte-by-byte loading at the expense of a slight amount of wasted space
-            uint32_t lastBlockEndPos = openSlot == 0 ? 0 : curChunk*STREAM_CHUNK_SIZE;
-            uint8_t streamChunk[STREAM_CHUNK_SIZE];
-            uint32_t chunksRequired = ceil((double)dataBlocks[openSlot].DataLength / (double)STREAM_CHUNK_SIZE);
-            for(uint32_t i = 0; i<chunksRequired; i++)
-            {
-                file->readBytes(streamChunk, STREAM_CHUNK_SIZE);
-                //ram.WriteStream(curChunk*STREAM_CHUNK_SIZE, streamChunk, STREAM_CHUNK_SIZE);
-                curChunk++;
-            }
-            count++;
-            if(header.vgmDataOffset == 0)
-                file->seek(0x40+pcmBufferEndPosition+(7*count)); //7 is for the PCM block header info and datasize and needs to be multiplied by the datablock # (count)
-            else
-                file->seek(header.vgmDataOffset+0x34+pcmBufferEndPosition+(7*count));
-
-            dataBlocks[openSlot].DataStart = lastBlockEndPos;
-
-
-
-
-
-            //byte-by-byte, don't use
-            // uint32_t lastBlockEndPos = openSlot == 0 ? 0 : dataBlocks[openSlot-1].DataStart+dataBlocks[openSlot-1].DataLength;
-            // for(uint32_t i = lastBlockEndPos; i<lastBlockEndPos+dataBlocks[openSlot].DataLength; i++)
-            // {
-            //     ram.WriteByte(i, file->read());
-            //     pcmBufferEndPosition++;
-            // }
-            // dataBlocks[openSlot].DataStart = lastBlockEndPos;
-       }
-    } 
-    
-    //Serial.print("Used Bytes: "); Serial.println(ram.usedBytes);
+            pcmSkipPosition = header.vgmDataOffset+0x34+pcmBufferEndPosition+(7*count);
+            file->seek(pcmSkipPosition);
+        }
+    }
     return isPCM;
 }
 
@@ -536,37 +487,20 @@ uint16_t VGMEngineClass::parseVGM()
                 return 735;
             case 0x63:
                 return 882;
-            case 0x67:
+            case 0x67: //Skip PCM data block
             {
-
                 readBufOne(&stream);
                 readBufOne(&stream);
                 readBufOne(&stream);
                 uint32_t pcmSize = readBuf32(&stream); //Payload size;
                 for(uint32_t i=0; i<pcmSize; i++)
                     readBufOne(&stream);                
-
-                // readBufOne(); //0x67
-                // readBufOne(); //0x66
-                // readBufOne(); //datatype
-                // uint32_t pcmSize = readBuf32();
-                // Serial.println("CALLED PCM STORE MID STREAM");
-                // if(pcmSize > MAX_PCM_BUFFER_SIZE)
-                // {
-                //     Serial.print("TOO BIG!");
-                //     return true; //todo: Error out here or go to next track. return is temporary
-                // }
-                // else
-                // {
-                //     for(uint32_t i = pcmBufferEndPosition; i<pcmSize+pcmBufferEndPosition; i++)
-                //     {
-                //         ram.WriteByte(i, readBufOne());
-                //         pcmBufferEndPosition++;
-                //     }
-                // }
-                // break;
             }
             break;
+            case 0xA0:
+            case 0xB0:
+            case 0xB1:
+            case 0xB2:
             case 0xB5: //Ignore common secondary PCM chips
             case 0xB6:
             case 0xB7:
@@ -681,7 +615,7 @@ uint16_t VGMEngineClass::parseVGM()
             {
                 readBufOne(&stream); //skip stream ID
                 uint32_t streamFrq = readBuf32(&stream);
-                setDacStreamTimer(streamFrq);
+                //setDacStreamTimer(streamFrq);
                 //Serial.println("0x92: "); //Serial.print(streamID, HEX); Serial.print(" "); Serial.print(streamFrq); Serial.println("   --- SET STREAM FRQ");
             }
             break;
@@ -693,25 +627,25 @@ uint16_t VGMEngineClass::parseVGM()
                 uint8_t lmode = readBufOne(&stream); //Length mode
                 //Serial.print("LMODE: "); Serial.print(lmode, BIN);
                 dacStreamCurLength = readBuf32(&stream);
-                //Serial.print("BUF POS: "); Serial.println(dacStreamBufPos);
-                for(uint8_t i = 0; i<MAX_DATA_BLOCKS_IN_BANK; i++)
-                {
-                    if(dataBlocks[i].absoluteDataStartInBank == dacStreamBufPos)
-                    {
-                        activeDacStreamBlock = i;
-                        dataBlocks[i].LengthMode = lmode;
-                        //Serial.print("FOUND BLOCK: "); Serial.println(i);
-                        break;
-                    }
-                }
+                // //Serial.print("BUF POS: "); Serial.println(dacStreamBufPos);
+                // for(uint8_t i = 0; i<MAX_DATA_BLOCKS_IN_BANK; i++)
+                // {
+                //     if(dataBlocks[i].absoluteDataStartInBank == dacStreamBufPos)
+                //     {
+                //         activeDacStreamBlock = i;
+                //         dataBlocks[i].LengthMode = lmode;
+                //         //Serial.print("FOUND BLOCK: "); Serial.println(i);
+                //         break;
+                //     }
+                // }
                 //Serial.println("0x93: "); //Serial.print(streamID, HEX); Serial.print(" "); Serial.print(dStart, HEX); Serial.print(" "); Serial.print(lengthMode, HEX); Serial.print(" "); Serial.print(dLength); Serial.println("   --- START STREAM");
             }
             break;
             case 0x94:
             {
                 readBufOne(&stream); //skip stream ID
-                stopDacStreamTimer();
-                activeDacStreamBlock = 0xFF;
+                // stopDacStreamTimer();
+                // activeDacStreamBlock = 0xFF;
                 //Serial.println("0x94: "); //Serial.print(streamID, HEX); Serial.print(" "); Serial.println("   --- STOP STREAM");
             }
             break;
@@ -720,10 +654,10 @@ uint16_t VGMEngineClass::parseVGM()
                 readBufOne(&stream); //skip stream ID
                 uint16_t blockID = readBuf16(&stream);
                 uint8_t flags = readBufOne(&stream); //flags
-                dacStreamBufPos = dataBlocks[blockID].DataStart;
-                dacStreamCurLength = dataBlocks[blockID].DataLength;
-                activeDacStreamBlock = blockID;
-                dataBlocks[blockID].LengthMode = bitRead(flags, 0) == 1 ? 0b10000001 : 0; //Set proper loop flag. VGMSpec, why the hell did you pick a different bit for the same flag as the 0x93 command. Stupid!
+                // dacStreamBufPos = dataBlocks[blockID].DataStart;
+                // dacStreamCurLength = dataBlocks[blockID].DataLength;
+                // activeDacStreamBlock = blockID;
+                // dataBlocks[blockID].LengthMode = bitRead(flags, 0) == 1 ? 0b10000001 : 0; //Set proper loop flag. VGMSpec, why the hell did you pick a different bit for the same flag as the 0x93 command. Stupid!
                 //Serial.print("0x95: "); // Serial.print(streamID, HEX); Serial.print(" "); Serial.print(blockID, HEX); Serial.print(" "); Serial.print(flags, HEX); Serial.println("   --- START STREAM FAST");
                 //Serial.print("BLOCK ID: "); Serial.println(blockID);
             }

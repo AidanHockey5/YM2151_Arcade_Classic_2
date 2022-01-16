@@ -44,6 +44,6 @@
 #define ENABLE_C352 false
 #define ENABLE_GA20 false
 
-#define ENABLE_SPIRAM true
+#define ENABLE_SPIRAM false
 
 #endif

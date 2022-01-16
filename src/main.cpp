@@ -426,6 +426,15 @@ void setup()
   analogWrite(A0, 0);
   analogWrite(A1, 0);
 
+  //Just for testing the DAC
+  // while(true)
+  // {
+  //   analogWrite(A0, 0);
+  //   delay(8);
+  //   analogWrite(A0, 4095);
+  //   delay(8);
+  // }
+
 }
 
 uint16_t IRQtestCounter = 0;
