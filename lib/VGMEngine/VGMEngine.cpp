@@ -162,14 +162,14 @@ bool VGMEngineClass::storePCM(bool skip) //This function effectively seeks throu
 {
     bool isPCM = false;
     uint16_t count = 0;
-    if(skip)
-    {
-        file->seek(pcmSkipPosition);
-        return true;
-    }
     pcmBufferEndPosition = 0;
     while(file->peek() == 0x67)
     {
+        if(skip)
+        {
+            file->seek(pcmSkipPosition);
+            return true;
+        }
         isPCM = true;
         uint32_t size = 0;
         file->read(); //0x67
