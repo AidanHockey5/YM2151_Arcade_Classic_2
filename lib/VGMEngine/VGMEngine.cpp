@@ -53,7 +53,7 @@ bool VGMEngineClass::begin(File *f)
     }
 
     isOneOff = header.loopOffset == 0;
-    stopDacStreamTimer();
+    //stopDacStreamTimer();
     chipSetup();
     #if ENABLE_SPIRAM
         ram.Init();
@@ -334,8 +334,8 @@ void VGMEngineClass::playWavSample()
     int16_t r = readBuf16(&wavStream);
 
     //16 bit signed to 12 bit unsigned conversion
-     REG_DAC_DATA0 = ((l + 32768) >> 4); //Quickly write to the ADC A0   
-     REG_DAC_DATA1 = ((r + 32768) >> 4); //Quickly write to the ADC A1 
+    REG_DAC_DATA0 = ((l + 32768) >> 4); //Quickly write to the ADC A0   
+    REG_DAC_DATA1 = ((r + 32768) >> 4); //Quickly write to the ADC A1 
 }
 
 VGMEngineState VGMEngineClass::play()

@@ -1179,6 +1179,13 @@ void alertErrorState()
     nav.refresh();
 }
 
+void DoNav(Menu::navCmd cmd) //You need to stop the VGM ISR before you run through the navigation routines or you risk running out of time and crashing the player
+{
+  stop44k1();
+  nav.doNav(cmd);
+  set44k1ISR();
+}
+
 void loop()
 {    
   switch(VGMEngine.play())
@@ -1208,7 +1215,7 @@ void loop()
   if(buttons[0].fell()) //Next
   {
     if(menuState == IN_MENU)
-      nav.doNav(navCmd(enterCmd));
+      DoNav(navCmd(enterCmd)); 
     else if(menuState == IN_VGM)
     {
       if(playMode == IN_ORDER || playMode == SHUFFLE_ALL || playMode == SHUFFLE_DIR)
@@ -1218,7 +1225,7 @@ void loop()
   if(buttons[1].fell()) //Prev
   {
     if(menuState == IN_MENU)
-        nav.doNav(navCmd(escCmd));
+       DoNav(navCmd(escCmd));  
     else if(menuState == IN_VGM)
     {
       if(playMode == IN_ORDER || playMode == SHUFFLE_ALL || playMode == SHUFFLE_DIR)
@@ -1228,12 +1235,14 @@ void loop()
   if(buttons[2].fell()) //Up
   {
     if(menuState == IN_MENU)
-      nav.doNav(navCmd(downCmd));
+     DoNav(navCmd(downCmd)); 
   }
   if(buttons[3].fell()) //Select
     {
       if(menuState == IN_MENU) //If you're in the file-picker, the select button is used to enter dirs
-        nav.doNav(navCmd(enterCmd)); 
+      {
+        DoNav(navCmd(enterCmd));
+      }
       else if(menuState == IN_VGM) //Otherwise, you can use the select key to go back to the file picker where you left off
       {
         menuState = IN_MENU;
@@ -1245,11 +1254,12 @@ void loop()
   if(buttons[4].fell())//Down
   {
     if(menuState == IN_MENU)
-      nav.doNav(navCmd(upCmd));
+      DoNav(navCmd(upCmd));
   }
 
   //UI
-  if (nav.changed(0) && menuState == IN_MENU) {//only draw if menu changed for gfx device
+  if (nav.changed(0) && menuState == IN_MENU) 
+  { //only draw if menu changed for gfx device
     //change checking leaves more time for other tasks
     u8g2.firstPage();
     do nav.doOutput(); while(u8g2.nextPage());
@@ -1266,7 +1276,8 @@ result filePick(eventMask event, navNode& _nav, prompt &item)
 {
   // switch(event) {//for now events are filtered only for enter, so we dont need this checking
   //   case enterCmd:
-      if (_nav.root->navFocus==(navTarget*)&filePickMenu) {
+      if (_nav.root->navFocus==(navTarget*)&filePickMenu) 
+      {
         Serial.println();
         Serial.print("selected file:");
         Serial.println(filePickMenu.selectedFile);
