@@ -335,10 +335,10 @@ void setup()
     si5351.init(SI5351_CRYSTAL_LOAD_8PF, 0, 0);
   }
   si5351.drive_strength(SI5351_CLK0, SI5351_DRIVE_4MA);
-  si5351.drive_strength(SI5351_CLK1, SI5351_DRIVE_4MA);
+  si5351.drive_strength(SI5351_CLK1, SI5351_DRIVE_2MA);
   si5351.set_freq(NTSC_YMCLK*100ULL, SI5351_CLK0); //CLK0 YM
-  si5351.set_freq(NTSC_COLORBURST*100ULL, SI5351_CLK1); //CLK1 PSG - VALUES IN 0.01Hz
-
+  si5351.set_freq(0*100ULL, SI5351_CLK1); //CLK1 PSG - VALUES IN 0.01Hz
+  VGMEngine.clk = si5351; //Temp line. Shouldn't exist?
   //Timers
   VGMEngine.setDacStreamTimer = &setDacStreamTimer;
   VGMEngine.stopDacStreamTimer = &stopDacStreamTimer;
@@ -419,12 +419,16 @@ void setup()
   nav.timeOut=0xFFFFFFFF; //This might be a slight issue if you decide to run your player for 50,000 days straight :/
   nav.idleTask = onMenuIdle;
 
-
+  analogReference(AR_DEFAULT);
   analogWriteResolution(12);
-  pinMode(A0, OUTPUT);
-  pinMode(A1, OUTPUT);
-  analogWrite(A0, 0);
-  analogWrite(A1, 0);
+  pinMode(A0, INPUT_PULLDOWN); //Enable the pulldowns at first to keep caps from accumulating charge
+  pinMode(A1, INPUT_PULLDOWN);
+
+
+  // analogWrite(A0, 0);
+  // analogWrite(A1, 0);
+  // PORT->Group[0].PINCFG[2].bit.PULLEN = 0;
+  // PORT->Group[0].PINCFG[5].bit.PULLEN = 0;
 
   //Just for testing the DAC
   // while(true)
@@ -1265,9 +1269,6 @@ void loop()
     do nav.doOutput(); while(u8g2.nextPage());
   }
 }
-
-
-
 
 //UI
 

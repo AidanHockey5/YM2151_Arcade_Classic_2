@@ -59,6 +59,7 @@ public:
     void ramtest();
     void (*setDacStreamTimer)(uint32_t);
     void (*stopDacStreamTimer)(void);
+    Si5351 clk;
 private:
     File* file;
     static const uint32_t VGM_BUF_SIZE = 16384;

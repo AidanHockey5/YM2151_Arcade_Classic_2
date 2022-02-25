@@ -305,7 +305,7 @@ void VGMEngineClass::chipSetup()
     #endif
     #if ENABLE_YM2151
     ym2151->setClock(header.ym2151Clock);
-    si5351.set_freq(header.ym2151Clock*SI5351_FREQ_MULT, SI5351_CLK0); //CLK0 YM
+    clk.set_freq(header.ym2151Clock*SI5351_FREQ_MULT, SI5351_CLK0); //CLK0 YM
     delay(10);
     ym2151->reset();
     #endif

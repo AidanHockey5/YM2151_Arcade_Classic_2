@@ -22,9 +22,9 @@ Bus::Bus(uint8_t _pins[8])
 void Bus::write(uint8_t data)
 {
     //Optimized for MEGABLASTER 2 ARM CPU, NOT AT ALL PORTABLE
-    uint32_t drev;                                      //Reversed byte for swapped bus (easier for PCB layout)
-    __asm__("rbit %0, %1\n" : "=r"(drev) : "r"(data));  //use ARM ASM for supa' speed swapping bit order. 32 bit operation
-    data = drev >> 24;                                  //Copy reversed byte from drev back to data after pushing over 24 bits
+    //uint32_t drev;                                      //Reversed byte for swapped bus (easier for PCB layout)
+    //__asm__("rbit %0, %1\n" : "=r"(drev) : "r"(data));  //use ARM ASM for supa' speed swapping bit order. 32 bit operation
+    //data = rev >> 24;                                  //Copy reversed byte from drev back to data after pushing over 24 bits
     uint32_t p = REG_PORT_OUT0;                         //Grab current state of entire PORTA reg
     p &= 0b11111000000001111111111111111;               //Mask out everything except our databus
     p |= data << 16;                                    //Insert our data
