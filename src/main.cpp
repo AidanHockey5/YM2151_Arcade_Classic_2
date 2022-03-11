@@ -2,7 +2,7 @@
 //CHIP SELECT FEATURES MANUALLY ADJUSTED IN SDFAT LIB (in SdSpiDriver.h). MUST USE LIB INCLUDED WITH REPO!!!
 
 #define BOOTLOADER_VERSION "1.0"
-#define FIRMWARE_VERSION "A"
+#define FIRMWARE_VERSION "A1"
 
 #include <Arduino.h>
 #include <SPI.h>
@@ -25,6 +25,7 @@
 #include "logo.h"
 #include "decompress.h"
 #include "FreeMem.h"
+#include "Adafruit_SleepyDog.h"
 
 extern "C" {
   #include "trngFunctions.h" //True random number generation
@@ -157,68 +158,68 @@ TOGGLE(VGMEngine.loopOneOffs, setLoopOneOff, "Loop One-offs: ", doNothing, noEve
     ,VALUE("OFF",false,doNothing,noEvent)
 );
 
-TOGGLE(VGMEngine.ym2612CHControl[0x00], setYM2612CH1, "FM CH1: ", doNothing, noEvent, noStyle
-    ,VALUE("ON",true,doNothing,noEvent)
-    ,VALUE("OFF",false,doNothing,noEvent)
-);
+// TOGGLE(VGMEngine.ym2612CHControl[0x00], setYM2612CH1, "FM CH1: ", doNothing, noEvent, noStyle
+//     ,VALUE("ON",true,doNothing,noEvent)
+//     ,VALUE("OFF",false,doNothing,noEvent)
+// );
 
-TOGGLE(VGMEngine.ym2612CHControl[0x01], setYM2612CH2, "FM CH2: ", doNothing, noEvent, noStyle
-    ,VALUE("ON",true,doNothing,noEvent)
-    ,VALUE("OFF",false,doNothing,noEvent)
-);
+// TOGGLE(VGMEngine.ym2612CHControl[0x01], setYM2612CH2, "FM CH2: ", doNothing, noEvent, noStyle
+//     ,VALUE("ON",true,doNothing,noEvent)
+//     ,VALUE("OFF",false,doNothing,noEvent)
+// );
 
-TOGGLE(VGMEngine.ym2612CHControl[0x02], setYM2612CH3, "FM CH3: ", doNothing, noEvent, noStyle
-    ,VALUE("ON",true,doNothing,noEvent)
-    ,VALUE("OFF",false,doNothing,noEvent)
-);
+// TOGGLE(VGMEngine.ym2612CHControl[0x02], setYM2612CH3, "FM CH3: ", doNothing, noEvent, noStyle
+//     ,VALUE("ON",true,doNothing,noEvent)
+//     ,VALUE("OFF",false,doNothing,noEvent)
+// );
 
-TOGGLE(VGMEngine.ym2612CHControl[0x04], setYM2612CH4, "FM CH4: ", doNothing, noEvent, noStyle
-    ,VALUE("ON",true,doNothing,noEvent)
-    ,VALUE("OFF",false,doNothing,noEvent)
-);
+// TOGGLE(VGMEngine.ym2612CHControl[0x04], setYM2612CH4, "FM CH4: ", doNothing, noEvent, noStyle
+//     ,VALUE("ON",true,doNothing,noEvent)
+//     ,VALUE("OFF",false,doNothing,noEvent)
+// );
 
-TOGGLE(VGMEngine.ym2612CHControl[0x05], setYM2612CH5, "FM CH5: ", doNothing, noEvent, noStyle
-    ,VALUE("ON",true,doNothing,noEvent)
-    ,VALUE("OFF",false,doNothing,noEvent)
-);
+// TOGGLE(VGMEngine.ym2612CHControl[0x05], setYM2612CH5, "FM CH5: ", doNothing, noEvent, noStyle
+//     ,VALUE("ON",true,doNothing,noEvent)
+//     ,VALUE("OFF",false,doNothing,noEvent)
+// );
 
-TOGGLE(VGMEngine.ym2612CHControl[0x06], setYM2612CH6, "FM CH6: ", doNothing, noEvent, noStyle
-    ,VALUE("ON",true,doNothing,noEvent)
-    ,VALUE("OFF",false,doNothing,noEvent)
-);
+// TOGGLE(VGMEngine.ym2612CHControl[0x06], setYM2612CH6, "FM CH6: ", doNothing, noEvent, noStyle
+//     ,VALUE("ON",true,doNothing,noEvent)
+//     ,VALUE("OFF",false,doNothing,noEvent)
+// );
 
-TOGGLE(VGMEngine.sn76489CHControl[0x00], setSN76489CH1, "PSG CH1: ", doNothing, noEvent, noStyle
-    ,VALUE("ON",true,doNothing,noEvent)
-    ,VALUE("OFF",false,doNothing,noEvent)
-);
+// TOGGLE(VGMEngine.sn76489CHControl[0x00], setSN76489CH1, "PSG CH1: ", doNothing, noEvent, noStyle
+//     ,VALUE("ON",true,doNothing,noEvent)
+//     ,VALUE("OFF",false,doNothing,noEvent)
+// );
 
-TOGGLE(VGMEngine.sn76489CHControl[0x01], setSN76489CH2, "PSG CH2: ", doNothing, noEvent, noStyle
-    ,VALUE("ON",true,doNothing,noEvent)
-    ,VALUE("OFF",false,doNothing,noEvent)
-);
+// TOGGLE(VGMEngine.sn76489CHControl[0x01], setSN76489CH2, "PSG CH2: ", doNothing, noEvent, noStyle
+//     ,VALUE("ON",true,doNothing,noEvent)
+//     ,VALUE("OFF",false,doNothing,noEvent)
+// );
 
-TOGGLE(VGMEngine.sn76489CHControl[0x02], setSN76489CH3, "PSG CH3: ", doNothing, noEvent, noStyle
-    ,VALUE("ON",true,doNothing,noEvent)
-    ,VALUE("OFF",false,doNothing,noEvent)
-);
+// TOGGLE(VGMEngine.sn76489CHControl[0x02], setSN76489CH3, "PSG CH3: ", doNothing, noEvent, noStyle
+//     ,VALUE("ON",true,doNothing,noEvent)
+//     ,VALUE("OFF",false,doNothing,noEvent)
+// );
 
-TOGGLE(VGMEngine.sn76489CHControl[0x03], setSN76489CH4, "PSG CH4: ", doNothing, noEvent, noStyle
-    ,VALUE("ON",true,doNothing,noEvent)
-    ,VALUE("OFF",false,doNothing,noEvent)
-);
+// TOGGLE(VGMEngine.sn76489CHControl[0x03], setSN76489CH4, "PSG CH4: ", doNothing, noEvent, noStyle
+//     ,VALUE("ON",true,doNothing,noEvent)
+//     ,VALUE("OFF",false,doNothing,noEvent)
+// );
 
-MENU(channelControl,"Channel Control",doNothing,noEvent,wrapStyle
-  ,SUBMENU(setYM2612CH1)
-  ,SUBMENU(setYM2612CH2)
-  ,SUBMENU(setYM2612CH3)
-  ,SUBMENU(setYM2612CH4)
-  ,SUBMENU(setYM2612CH5)
-  ,SUBMENU(setYM2612CH6)
-  ,SUBMENU(setSN76489CH1)
-  ,SUBMENU(setSN76489CH2)
-  ,SUBMENU(setSN76489CH3)
-  ,SUBMENU(setSN76489CH4)
-);
+// MENU(channelControl,"Channel Control",doNothing,noEvent,wrapStyle
+//   ,SUBMENU(setYM2612CH1)
+//   ,SUBMENU(setYM2612CH2)
+//   ,SUBMENU(setYM2612CH3)
+//   ,SUBMENU(setYM2612CH4)
+//   ,SUBMENU(setYM2612CH5)
+//   ,SUBMENU(setYM2612CH6)
+//   ,SUBMENU(setSN76489CH1)
+//   ,SUBMENU(setSN76489CH2)
+//   ,SUBMENU(setSN76489CH3)
+//   ,SUBMENU(setSN76489CH4)
+// );
 
 #define MAX_DEPTH 2
 MENU(mainMenu,"Main menu",doNothing,noEvent,wrapStyle
@@ -226,9 +227,16 @@ MENU(mainMenu,"Main menu",doNothing,noEvent,wrapStyle
   ,SUBMENU(modeMenu)
   ,FIELD(VGMEngine.maxLoops,"Loops: ","",1,255,1,10,doNothing,noEvent,noStyle)
   ,SUBMENU(setLoopOneOff)
-  ,SUBMENU(channelControl)
   //,EXIT("<Back")
 );
+// MENU(mainMenu,"Main menu",doNothing,noEvent,wrapStyle
+//   ,SUBMENU(filePickMenu)
+//   ,SUBMENU(modeMenu)
+//   ,FIELD(VGMEngine.maxLoops,"Loops: ","",1,255,1,10,doNothing,noEvent,noStyle)
+//   ,SUBMENU(setLoopOneOff)
+//   ,SUBMENU(channelControl)
+//   //,EXIT("<Back")
+// );
 
 MENU_OUTPUTS(out,MAX_DEPTH
   ,U8G2_OUT(u8g2,colors,fontX,fontY,offsetX,offsetY,{0,0,U8_Width/fontX,U8_Height/fontY})
@@ -389,7 +397,7 @@ void setup()
   const String bootloaderFWVersion = "BL: " + String(BOOTLOADER_VERSION) + " FW: " + String(FIRMWARE_VERSION) + " 2021";
   u8g2.drawStr(0, 64, bootloaderFWVersion.c_str());
   u8g2.sendBuffer();
-  //delay(3000);
+  delay(3000);
   u8g2.clearDisplay();
 
   //SD
@@ -438,7 +446,6 @@ void setup()
   //   analogWrite(A0, 4095);
   //   delay(8);
   // }
-
 }
 
 uint16_t IRQtestCounter = 0;
@@ -592,6 +599,7 @@ bool VerifyDirectory(File f)
 //Mount file and prepare for playback. Returns true if file is found.
 bool startTrack(FileStrategy fileStrategy, String request)
 {
+  Watchdog.disable();
   String filePath = "";
   stop44k1();
   ready = false;
@@ -847,6 +855,7 @@ bool startTrack(FileStrategy fileStrategy, String request)
       if(menuState == IN_VGM)
         drawOLEDTrackInfo();
       set44k1ISR();
+      Watchdog.enable(1000);
       return true;
     }
     else
@@ -859,6 +868,7 @@ bool startTrack(FileStrategy fileStrategy, String request)
   fail:
   VGMEngine.state = VGMEngineState::IDLE;
   alertErrorState();
+  Watchdog.enable(1000);
   //set44k1ISR();
   return false;
 }
@@ -1192,6 +1202,7 @@ void DoNav(Menu::navCmd cmd) //You need to stop the VGM ISR before you run throu
 
 void loop()
 {    
+  Watchdog.reset();
   switch(VGMEngine.play())
   {
     case VGMEngineState::IDLE:
