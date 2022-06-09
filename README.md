@@ -45,7 +45,7 @@ As you can imagine, this is quite a complex project. There are bound to be bugs 
 
 # Schematic
 
-![Schematic](https://github.com/AidanHockey5/MegaBlaster2/raw/master/schematic/MegaBlaster2.png)
+![Schematic](https://https://github.com/AidanHockey5/YM2151_Arcade_Classic_2/raw/master/schematic/ArcadeClassic2.png)
 
 # License
 The source code to this project is licensed under the AGPL 3.0 license.
