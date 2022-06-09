@@ -19,7 +19,9 @@ The result sounds pretty awesome!
 The Arcade Classic 2 will read standard VGM/VGZ files just fine, however, in order to enable pre-rendered PCM support, you will need to quickly run your VGM files through a tool I've created. This tool will render out any portions of the VGM file that aren't controlling the YM2151 into a WAV file. The tool will then append the WAV data to the original VGM file. Finally, the tool will change the VGM header information so that the Arcade Classic 2 will recognize it as a PCM-compatible VGM file.
 
 This tool is only compatible with Windows systems for now. It's fairly simple to use:
+
 [Download the VGM_To_VGP Tool Here!!!](https://aidanlawrence.com/tools/ee/arcadeclassic2/vgm_to_vgp.zip)
+
 1) Drag-and-drop VGM/VGZ files or folders containing VGM/VGZ onto the executable
 2) Let the program render out each track
 3) Add the newly created "VGP" files to your SD card!
