@@ -1,0 +1,7 @@
+﻿  stdafx.cpp
+  miniz.c
+  vgm_to_vgp.cpp
+c:\users\aidan\desktop\ym2151\vgmtovgp\vgm_to_vgp\decompress.h(60): warning C4244: '=': conversion from 'std::streamoff' to 'uint32_t', possible loss of data
+c:\users\aidan\desktop\ym2151\vgmtovgp\vgm_to_vgp\vgm_to_vgp.cpp(104): warning C4244: '=': conversion from 'std::streamoff' to 'uint32_t', possible loss of data
+c:\users\aidan\desktop\ym2151\vgmtovgp\vgm_to_vgp\vgm_to_vgp.cpp(74): warning C4101: 'fileInfo': unreferenced local variable
+  vgm_to_vgp.vcxproj -> C:\Users\Aidan\Desktop\YM2151\vgmtovgp\x64\Debug\vgm_to_vgp.exe
