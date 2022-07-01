@@ -1,13 +1,5 @@
 # Arcade Classic 2
 
-Demo video can be found here: https://www.youtube.com/watch?v=4sKwGWfikdc
-
-[Instruction Manual](https://github.com/AidanHockey5/MegaBlaster2/raw/master/man/MegaBlaster2InstructionManual.pdf)
-
-[Store Link](https://www.aidanlawrence.com/product/mega-blaster-2/)
-
-[Discord Link](https://discord.gg/M2skqkZhw2)
-
 This project contains the source material for the Arcade Classic 2, a hybrid hardware/software YM2151 video game music (VGM) player. This device is based off of the [Mega Blaster 2 platform](https://github.com/AidanHockey5/MegaBlaster2) which was designed to play Sega Genesis/Megadrive VGM files.
 This project utilizes a hybrid approach for rendering audio. All FM portions of the VGM file are played through a genuine YM2151 sound chip, while any extra soundchips, namely PCM soundchips, are pre-rendered and fed into an audio mixer circuit.
 While it would be awesome to have genuine hardware support for every chip that was ever paired up with the YM2151, there are several factors that make that approach completely unfeasible. Namely, the vast amount of hardware configurations, memory requirements, sheer board space required, and rarity of components.
