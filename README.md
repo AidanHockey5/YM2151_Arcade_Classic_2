@@ -1,3 +1,5 @@
+https://www.youtube.com/watch?v=WZmMP82XPoI
+
 # Arcade Classic 2
 
 This project contains the source material for the Arcade Classic 2, a hybrid hardware/software YM2151 video game music (VGM) player. This device is based off of the [Mega Blaster 2 platform](https://github.com/AidanHockey5/MegaBlaster2) which was designed to play Sega Genesis/Megadrive VGM files.
